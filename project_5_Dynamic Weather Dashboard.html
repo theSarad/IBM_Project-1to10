@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Weather Dashboard</title>
+    <style>
+        /*
+         * General Styling & Typography
+         */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #e0f2fe; /* Light blue background */
+            color: #1a202c; /* Dark text color */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+
+        /*
+         * Main Dashboard Container
+         */
+        .dashboard-container {
+            width: 100%;
+            max-width: 800px;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            padding: 2.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            transition: all 0.5s ease;
+        }
+
+        /*
+         * Search and User Interaction
+         */
+        .search-container {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .search-input {
+            flex-grow: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid #cbd5e0;
+            border-radius: 12px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4299e1;
+        }
+
+        .search-btn, .locate-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background-color: #4299e1;
+            color: white;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        .search-btn:hover, .locate-btn:hover {
+            background-color: #3182ce;
+            transform: translateY(-2px);
+        }
+
+        /*
+         * Weather Display Sections
+         */
+        .weather-display {
+            display: none; /* Initially hidden */
+        }
+
+        .weather-display.active {
+            display: block;
+        }
+
+        .current-weather {
+            text-align: center;
+        }
+
+        .current-weather h2 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin: 0 0 0.5rem;
+        }
+
+        .current-weather .date {
+            color: #718096;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .temp-icon-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+        }
+
+        .temp {
+            font-size: 4rem;
+            font-weight: 700;
+            color: #2b6cb0;
+        }
+
+        .weather-icon {
+            width: 100px;
+            height: 100px;
+        }
+
+        .description {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #4a5568;
+            margin-top: 0.5rem;
+        }
+
+        .forecast-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin: 0;
+            text-align: center;
+        }
+
+        .forecast-container {
+            display: flex;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .forecast-card {
+            background-color: #f7fafc;
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            flex: 1 1 120px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            transition: transform 0.3s ease;
+        }
+        
+        .forecast-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .forecast-card .day {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #4a5568;
+        }
+
+        .forecast-card img {
+            width: 60px;
+            height: 60px;
+            margin: 0.5rem 0;
+        }
+
+        .forecast-card .temp-range {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #2b6cb0;
+        }
+
+        /*
+         * Utility Classes & States
+         */
+        .message {
+            text-align: center;
+            font-size: 1.25rem;
+            color: #718096;
+            font-weight: 600;
+        }
+
+        .error {
+            color: #e53e3e;
+        }
+
+        /*
+         * Responsive Design
+         */
+        @media (max-width: 600px) {
+            .dashboard-container {
+                padding: 1.5rem;
+                gap: 1.5rem;
+            }
+            .search-container {
+                flex-direction: column;
+            }
+            .current-weather h2 {
+                font-size: 2rem;
+            }
+            .temp {
+                font-size: 3rem;
+            }
+            .description {
+                font-size: 1.25rem;
+            }
+            .forecast-container {
+                justify-content: center;
+            }
+            .forecast-card {
+                flex: 1 1 45%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Search and Location Input -->
+        <div class="search-container">
+            <input type="text" id="city-input" class="search-input" placeholder="Enter a city name">
+            <button id="search-btn" class="search-btn">Search</button>
+            <button id="locate-btn" class="locate-btn">Use My Location</button>
+        </div>
+
+        <!-- Dynamic Content Area -->
+        <div id="content-area" class="message">
+            Fetching your location...
+        </div>
+
+        <!-- Weather Display (Initially hidden) -->
+        <div id="weather-display" class="weather-display">
+            <!-- Current Weather -->
+            <div class="current-weather">
+                <h2 id="current-city"></h2>
+                <p id="current-date" class="date"></p>
+                <div class="temp-icon-container">
+                    <p id="current-temp" class="temp"></p>
+                    <img id="current-icon" class="weather-icon" alt="Weather icon">
+                </div>
+                <p id="current-desc" class="description"></p>
+            </div>
+
+            <!-- 5-Day Forecast -->
+            <div class="forecast-section">
+                <h3 class="forecast-title">5-Day Forecast</h3>
+                <div id="forecast-container" class="forecast-container">
+                    <!-- Forecast cards will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const API_KEY = 'YOUR_API_KEY_HERE'; // Replace with your actual API key
+            const contentArea = document.getElementById('content-area');
+            const weatherDisplay = document.getElementById('weather-display');
+            const cityInput = document.getElementById('city-input');
+            const searchBtn = document.getElementById('search-btn');
+            const locateBtn = document.getElementById('locate-btn');
+
+            // DOM elements for current weather
+            const currentCity = document.getElementById('current-city');
+            const currentDate = document.getElementById('current-date');
+            const currentTemp = document.getElementById('current-temp');
+            const currentIcon = document.getElementById('current-icon');
+            const currentDesc = document.getElementById('current-desc');
+            const forecastContainer = document.getElementById('forecast-container');
+
+            // Helper function to format date
+            const formatDate = (timestamp) => {
+                const date = new Date(timestamp * 1000);
+                const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                return date.toLocaleDateString('en-US', options);
+            };
+
+            // Function to display an error message
+            const displayError = (message) => {
+                contentArea.textContent = message;
+                contentArea.classList.add('error');
+                weatherDisplay.classList.remove('active');
+            };
+
+            // Function to fetch weather data from OpenWeatherMap API
+            const getWeatherData = async (url) => {
+                try {
+                    const response = await fetch(url);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    console.error('API fetch error:', error);
+                    return null;
+                }
+            };
+
+            // Function to fetch and display weather by city name
+            const getWeatherByCity = async (city) => {
+                contentArea.textContent = 'Fetching weather data...';
+                contentArea.classList.remove('error');
+                weatherDisplay.classList.remove('active');
+
+                const geoUrl = `https://api.openweathermap.org/geo/1.0/direct?q=${city}&limit=1&appid=${API_KEY}`;
+                const geoData = await getWeatherData(geoUrl);
+
+                if (!geoData || geoData.length === 0) {
+                    displayError(`City "${city}" not found. Please try again.`);
+                    return;
+                }
+
+                const { lat, lon } = geoData[0];
+                await fetchWeatherByCoordinates(lat, lon, geoData[0].name, geoData[0].country);
+            };
+
+            // Function to fetch and display weather by coordinates
+            const fetchWeatherByCoordinates = async (lat, lon, cityName = 'Your Location', country = '') => {
+                contentArea.textContent = 'Fetching weather data...';
+                contentArea.classList.remove('error');
+                weatherDisplay.classList.remove('active');
+
+                const weatherUrl = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`;
+                const forecastUrl = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${API_KEY}`;
+
+                const weatherData = await getWeatherData(weatherUrl);
+                const forecastData = await getWeatherData(forecastUrl);
+
+                if (!weatherData || !forecastData) {
+                    displayError('Failed to retrieve weather data. Please check your API key and connection.');
+                    return;
+                }
+
+                displayWeather(weatherData, forecastData);
+            };
+
+            // Get user's current location on page load
+            const getMyCurrentLocation = () => {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const { latitude, longitude } = position.coords;
+                            fetchWeatherByCoordinates(latitude, longitude);
+                        },
+                        (error) => {
+                            console.error('Geolocation error:', error.code, error.message);
+                            let errorMessage;
+                            switch(error.code) {
+                                case error.PERMISSION_DENIED:
+                                    errorMessage = 'Location permission was denied. Please enable it in your browser settings or enter a city name.';
+                                    break;
+                                case error.POSITION_UNAVAILABLE:
+                                    errorMessage = 'Your location is currently unavailable.';
+                                    break;
+                                case error.TIMEOUT:
+                                    errorMessage = 'Request to get user location timed out.';
+                                    break;
+                                default:
+                                    errorMessage = 'Geolocation failed. Please enter a city name.';
+                            }
+                            displayError(errorMessage);
+                            cityInput.focus();
+                        }
+                    );
+                } else {
+                    displayError('Geolocation is not supported by your browser. Please enter a city name.');
+                    cityInput.focus();
+                }
+            };
+            
+            // Event listeners
+            searchBtn.addEventListener('click', () => {
+                const city = cityInput.value.trim();
+                if (city) {
+                    getWeatherByCity(city);
+                } else {
+                    displayError('Please enter a city name.');
+                }
+            });
+
+            cityInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    searchBtn.click();
+                }
+            });
+
+            locateBtn.addEventListener('click', getMyCurrentLocation);
+
+            // Initial call to get user's location
+            getMyCurrentLocation();
+        });
+    </script>
+</body>
+</html>

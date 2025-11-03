@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recipe Finder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4 sm:p-8">
+    <div class="max-w-4xl w-full bg-white rounded-2xl shadow-xl p-6 sm:p-10 text-center">
+        <h1 class="text-4xl sm:text-5xl font-bold text-gray-800 mb-2">Recipe Finder</h1>
+        <p class="text-lg text-gray-600 mb-8">
+            Enter the ingredients you have to find recipes and reduce food waste. 
+        </p>
+
+        <div class="space-y-4 mb-8">
+            <input type="text" id="apiKeyInput" placeholder="Enter your Spoonacular API key" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow">
+            <p id="apiKeyError" class="text-red-500 text-sm hidden">Please provide a valid API key from Spoonacular.</p>
+            <input type="text" id="ingredientsInput" placeholder="e.g. eggs, flour, sugar" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow">
+            <button id="searchButton" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-md hover:bg-blue-700 transition-colors duration-200">
+                Find Recipes
+            </button>
+        </div>
+
+        <div id="loadingIndicator" class="hidden text-center">
+            <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2 text-gray-500">Searching for recipes...</p>
+        </div>
+
+        <div id="recipesContainer" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
+            <!-- Recipes will be displayed here -->
+        </div>
+        
+    </div>
+
+    <script>
+        const searchButton = document.getElementById('searchButton');
+        const apiKeyInput = document.getElementById('apiKeyInput');
+        const ingredientsInput = document.getElementById('ingredientsInput');
+        const recipesContainer = document.getElementById('recipesContainer');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const apiKeyError = document.getElementById('apiKeyError');
+
+        searchButton.addEventListener('click', async () => {
+            const apiKey = apiKeyInput.value.trim();
+            const ingredients = ingredientsInput.value.trim();
+
+            apiKeyError.classList.add('hidden');
+            recipesContainer.innerHTML = '';
+
+            if (!apiKey) {
+                apiKeyError.classList.remove('hidden');
+                recipesContainer.innerHTML = '<p class="text-red-500 mt-8">Please enter a valid Spoonacular API key.</p>';
+                return;
+            }
+
+            if (!ingredients) {
+                recipesContainer.innerHTML = '<p class="text-red-500 mt-8">Please enter at least one ingredient.</p>';
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            recipesContainer.innerHTML = '';
+
+            const url = `https://api.spoonacular.com/recipes/findByIngredients?apiKey=${apiKey}&ingredients=${ingredients}&number=12&ranking=1&ignorePantry=true`;
+
+            try {
+                const response = await fetch(url);
+
+                if (!response.ok) {
+                    // Handle API errors based on status code
+                    if (response.status === 401) {
+                        // The 401 status code means the API key is invalid.
+                        apiKeyError.classList.remove('hidden');
+                        throw new Error('Invalid API key. Please check your key.');
+                    }
+                    throw new Error(`API Error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+
+                if (data.length === 0) {
+                    recipesContainer.innerHTML = '<p class="text-gray-500 mt-8">No recipes found for these ingredients. Try a different combination!</p>';
+                } else {
+                    data.forEach(recipe => {
+                        const recipeCard = document.createElement('div');
+                        recipeCard.className = 'bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-shadow duration-300 overflow-hidden';
+
+                        // Use a fallback placeholder image in case the API image URL fails.
+                        const imageUrl = recipe.image || `https://placehold.co/500x300/a3a3a3/ffffff?text=No+Image`;
+
+                        recipeCard.innerHTML = `
+                            <img src="${imageUrl}" alt="${recipe.title}" class="w-full h-40 object-cover" onerror="this.onerror=null;this.src='https://placehold.co/500x300/a3a3a3/ffffff?text=No+Image';">
+                            <div class="p-4">
+                                <h3 class="text-lg font-semibold text-gray-800 mb-2">${recipe.title}</h3>
+                                <p class="text-sm text-gray-600">
+                                    <span class="font-medium text-blue-600">${recipe.usedIngredientCount}</span> ingredient(s) used.
+                                </p>
+                                <div class="mt-4 text-center">
+                                    <a href="https://spoonacular.com/recipes/${recipe.title.toLowerCase().replace(/\s/g, '-')}-${recipe.id}" target="_blank" class="inline-block bg-blue-500 text-white text-sm font-medium py-2 px-4 rounded-full hover:bg-blue-600 transition-colors">
+                                        View Recipe
+                                    </a>
+                                </div>
+                            </div>
+                        `;
+                        recipesContainer.appendChild(recipeCard);
+                    });
+                }
+
+            } catch (error) {
+                console.error('Error fetching recipes:', error);
+                recipesContainer.innerHTML = `<p class="text-red-500 mt-8">An error occurred: ${error.message}. Please try again later.</p>`;
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Review Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .rating-stars svg {
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .rating-stars svg.filled {
+            color: #fbbf24; /* Tailwind yellow-400 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-4 sm:p-8">
+    <!-- Message Modal -->
+    <div id="message-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-gray-900 bg-opacity-50 transition-opacity duration-300">
+        <div class="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm text-center transform transition-transform duration-300 scale-95">
+            <h3 id="modal-title" class="text-xl font-bold text-gray-800 mb-2"></h3>
+            <p id="modal-message" class="text-gray-600 mb-4"></p>
+            <button id="modal-ok-button" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-xl hover:bg-blue-700 transition-colors">OK</button>
+        </div>
+    </div>
+
+    <div class="max-w-6xl w-full bg-white rounded-2xl shadow-xl p-6 sm:p-10 text-center">
+        <h1 class="text-4xl sm:text-5xl font-bold text-gray-800 mb-2">Movie Reviews</h1>
+        <p class="text-lg text-gray-600 mb-8">
+            Discover, rate, and review your favorite films.
+        </p>
+
+        <div class="space-y-4 mb-8">
+            <input type="text" id="omdbApiKeyInput" placeholder="Enter your OMDB API key" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow">
+            <input type="text" id="movieSearchInput" placeholder="Search for a movie (e.g., Inception)" class="w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow">
+            <button id="searchButton" class="w-full bg-blue-600 text-white font-semibold py-3 rounded-xl shadow-md hover:bg-blue-700 transition-colors duration-200">
+                Search Movies
+            </button>
+        </div>
+
+        <div id="loadingIndicator" class="hidden text-center mt-8">
+            <svg class="animate-spin h-8 w-8 text-blue-500 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p class="mt-2 text-gray-500">Searching for movies...</p>
+        </div>
+
+        <div id="searchResults" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            <!-- Search results will be rendered here -->
+        </div>
+
+        <div id="movieDetailModal" class="fixed inset-0 z-40 hidden overflow-y-auto bg-gray-900 bg-opacity-80 flex items-center justify-center">
+            <div class="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl p-6 sm:p-8">
+                <button id="closeDetailModal" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <div id="movieDetailContent" class="text-left">
+                    <!-- Movie details, review form, and reviews will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const searchButton = document.getElementById('searchButton');
+        const movieSearchInput = document.getElementById('movieSearchInput');
+        const omdbApiKeyInput = document.getElementById('omdbApiKeyInput');
+        const searchResults = document.getElementById('searchResults');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const movieDetailModal = document.getElementById('movieDetailModal');
+        const movieDetailContent = document.getElementById('movieDetailContent');
+        const closeDetailModal = document.getElementById('closeDetailModal');
+
+        // Message Modal elements
+        const messageModal = document.getElementById('message-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalMessage = document.getElementById('modal-message');
+        const modalOkButton = document.getElementById('modal-ok-button');
+
+        function showMessage(title, message) {
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            messageModal.classList.remove('hidden');
+            setTimeout(() => messageModal.querySelector('div').classList.remove('scale-95'), 10);
+        }
+
+        modalOkButton.addEventListener('click', () => {
+            messageModal.querySelector('div').classList.add('scale-95');
+            setTimeout(() => messageModal.classList.add('hidden'), 300);
+        });
+
+        searchButton.addEventListener('click', async () => {
+            const apiKey = omdbApiKeyInput.value.trim();
+            const movieTitle = movieSearchInput.value.trim();
+
+            if (!apiKey) {
+                showMessage('API Key Required', 'Please enter your OMDB API key.');
+                return;
+            }
+
+            if (!movieTitle) {
+                showMessage('Missing Movie Title', 'Please enter a movie title to search.');
+                return;
+            }
+
+            loadingIndicator.classList.remove('hidden');
+            searchResults.innerHTML = '';
+
+            const searchUrl = `https://www.omdbapi.com/?s=${encodeURIComponent(movieTitle)}&apikey=${apiKey}`;
+
+            try {
+                const response = await fetch(searchUrl);
+                const data = await response.json();
+
+                if (data.Response === 'False') {
+                    if (data.Error === 'Invalid API key!') {
+                        showMessage('API Key Error', 'The provided API key is invalid. Please check and try again.');
+                    } else {
+                        showMessage('No Results', data.Error);
+                    }
+                } else {
+                    data.Search.forEach(movie => {
+                        if (movie.Type === 'movie') {
+                            const movieCard = document.createElement('div');
+                            movieCard.className = 'bg-gray-50 rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 overflow-hidden cursor-pointer';
+                            movieCard.innerHTML = `
+                                <img src="${movie.Poster !== 'N/A' ? movie.Poster : 'https://placehold.co/300x450/e5e7eb/4b5563?text=No+Poster'}" alt="${movie.Title}" class="w-full h-80 object-cover">
+                                <div class="p-4">
+                                    <h3 class="text-xl font-bold text-gray-800">${movie.Title}</h3>
+                                    <p class="text-gray-600 mt-1">(${movie.Year})</p>
+                                </div>
+                            `;
+                            movieCard.addEventListener('click', () => fetchMovieDetails(movie.imdbID, apiKey));
+                            searchResults.appendChild(movieCard);
+                        }
+                    });
+                }
+            } catch (error) {
+                showMessage('Network Error', 'Could not connect to the API. Please check your internet connection.');
+                console.error('Error fetching movies:', error);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        });
+
+        async function fetchMovieDetails(imdbID, apiKey) {
+            loadingIndicator.classList.remove('hidden');
+            const detailUrl = `https://www.omdbapi.com/?i=${imdbID}&plot=full&apikey=${apiKey}`;
+
+            try {
+                const response = await fetch(detailUrl);
+                const data = await response.json();
+
+                if (data.Response === 'False') {
+                    showMessage('Movie Details Error', data.Error);
+                } else {
+                    displayMovieDetails(data);
+                }
+            } catch (error) {
+                showMessage('Network Error', 'Could not fetch movie details. Please try again.');
+                console.error('Error fetching movie details:', error);
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        function displayMovieDetails(movie) {
+            const userReview = getReviewFromLocalStorage(movie.imdbID);
+            const userRating = userReview ? userReview.rating : 0;
+            const userComment = userReview ? userReview.comment : '';
+
+            movieDetailContent.innerHTML = `
+                <div class="flex flex-col sm:flex-row items-center sm:items-start space-y-6 sm:space-y-0 sm:space-x-6">
+                    <img src="${movie.Poster !== 'N/A' ? movie.Poster : 'https://placehold.co/300x450/e5e7eb/4b5563?text=No+Poster'}" alt="${movie.Title}" class="w-full sm:w-1/3 rounded-xl shadow-md">
+                    <div class="flex-1 text-center sm:text-left">
+                        <h2 class="text-3xl font-bold text-gray-800 mb-2">${movie.Title} (${movie.Year})</h2>
+                        <p class="text-gray-600">${movie.Genre} | ${movie.Runtime} | ${movie.Rated}</p>
+                        <p class="text-gray-700 mt-4">${movie.Plot}</p>
+                        <div class="grid grid-cols-2 gap-4 mt-6 text-gray-700">
+                            <div><strong>Director:</strong> ${movie.Director}</div>
+                            <div><strong>Writer:</strong> ${movie.Writer}</div>
+                            <div><strong>Actors:</strong> ${movie.Actors}</div>
+                            <div><strong>IMDB Rating:</strong> ${movie.imdbRating} / 10</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-8 border-t border-gray-200 pt-6">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">Your Review</h3>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <span class="text-lg text-gray-700 font-semibold">Your Rating:</span>
+                        <div class="rating-stars flex space-x-1" data-rating="${userRating}">
+                            ${Array(5).fill(0).map((_, i) => `
+                                <svg class="w-8 h-8 ${i < userRating ? 'text-yellow-400' : 'text-gray-300'}" fill="currentColor" viewBox="0 0 24 24" data-value="${i + 1}">
+                                    <path d="M12 .587l3.668 7.568 8.332 1.151-6.064 5.828 1.584 8.279-7.52-3.98-7.52 3.98 1.584-8.279-6.064-5.828 8.332-1.151z"/>
+                                </svg>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <textarea id="review-comment" class="w-full h-32 p-4 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-shadow resize-none" placeholder="Write your review here...">${userComment}</textarea>
+                    <button id="saveReviewButton" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-xl hover:bg-blue-700 transition-colors mt-4">Save Review</button>
+                </div>
+                <div class="mt-8 border-t border-gray-200 pt-6">
+                    <h3 class="text-2xl font-bold text-gray-800 mb-4">Community Reviews</h3>
+                    <p class="text-gray-500">Note: For a real-world app, reviews would be stored in a shared database. This version saves reviews in your browser's local storage.</p>
+                </div>
+            `;
+            
+            const reviewComment = document.getElementById('review-comment');
+            const saveReviewButton = document.getElementById('saveReviewButton');
+            const ratingStars = document.querySelector('.rating-stars');
+            
+            let currentRating = userRating;
+            
+            ratingStars.addEventListener('click', (e) => {
+                const star = e.target.closest('svg');
+                if (!star) return;
+                currentRating = parseInt(star.dataset.value);
+                updateStars(currentRating);
+            });
+
+            function updateStars(rating) {
+                const stars = ratingStars.querySelectorAll('svg');
+                stars.forEach((star, index) => {
+                    if (index < rating) {
+                        star.classList.add('filled');
+                        star.classList.remove('text-gray-300');
+                    } else {
+                        star.classList.remove('filled');
+                        star.classList.add('text-gray-300');
+                    }
+                });
+            }
+            
+            saveReviewButton.addEventListener('click', () => {
+                const review = {
+                    rating: currentRating,
+                    comment: reviewComment.value.trim(),
+                    date: new Date().toISOString()
+                };
+                saveReviewToLocalStorage(movie.imdbID, review);
+                showMessage('Review Saved!', 'Your review has been saved successfully.');
+            });
+
+            movieDetailModal.classList.remove('hidden');
+        }
+
+        closeDetailModal.addEventListener('click', () => {
+            movieDetailModal.classList.add('hidden');
+        });
+
+        // Local Storage Functions
+        function saveReviewToLocalStorage(imdbID, review) {
+            try {
+                localStorage.setItem(`review_${imdbID}`, JSON.stringify(review));
+            } catch (error) {
+                console.error('Failed to save review to local storage:', error);
+                showMessage('Storage Error', 'Could not save your review. Your browser may be in private mode.');
+            }
+        }
+
+        function getReviewFromLocalStorage(imdbID) {
+            try {
+                const review = localStorage.getItem(`review_${imdbID}`);
+                return review ? JSON.parse(review) : null;
+            } catch (error) {
+                console.error('Failed to retrieve review from local storage:', error);
+                return null;
+            }
+        }
+    </script>
+</body>
+</html>
